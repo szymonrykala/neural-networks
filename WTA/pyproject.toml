@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "wta"
 version = "0.1.0"
-description = ""
+description = "Winner Takes All neural network algorithm"
 authors = ["Szymon Rykała <szymonrykala@gmail.com>"]
 readme = "README.md"
 
