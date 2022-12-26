@@ -1,14 +1,25 @@
 import random
-from NNutils import Neuron, Measurments, VectorsGenerator, TrainingPoints
+from NNutils import Neuron, Measurments, Saveable, VectorsGenerator, TrainingPoints
+from helpers import VECTORS_FILE
 
 # WTA
 
-# Neuron.setMeasurment(Measurments.geometricMeasure)
+Neuron.setMeasurment(Measurments.geometricMeasure)
 
-# inputVectorLength = 3
-# neuronsCount = 5
+inputVectorLength = 3
+neuronsCount = 2
 
-# neurons = [Neuron(5) for _ in range(inputVectorLength)]
+# neurons = [Neuron(inputVectorLength) for _ in range(neuronsCount)]
+
+
+# print(neurons)
+
+# loadedNeurons = Saveable.loadFromFile('WTANeurons.json').store
+
+
+# saveableNeurons = Saveable(neurons)
+
+# saveableNeurons.saveToFile('tempNeurons.json')
 
 # for n in neurons: print(n)
 
@@ -26,10 +37,10 @@ from NNutils import Neuron, Measurments, VectorsGenerator, TrainingPoints
 
 
 def runGenerator():
-    generator = VectorsGenerator(3,0,2)
+    generator = VectorsGenerator(3,10,2)
 
-    vectors = generator.run(0,100,1)
+    vectors = generator.run(min=0,max=100,radius=0.5)
     print(vectors.points)
-    vectors.saveToFile('temp.json')
+    vectors.saveToFile(VECTORS_FILE)
 
 runGenerator()
