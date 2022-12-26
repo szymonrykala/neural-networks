@@ -13,20 +13,18 @@ class Measurments():
         return sqrt((w-v)*(w-v))
 
 
-class Neuron():
+class Neuron(list):
     P = 0.1
 
-    def __init__(self, inputVectorsCount: int, initWages: list = None) -> None:
+    def __init__(self, inputVectorsCount: int=0, initWages: list = None) -> None:
         if initWages:
-            self.wages = initWages
+            wages = initWages
         else:
-            self.wages = [
+            wages = [
                 self.__getRandWage()
                 for _ in range(inputVectorsCount)
             ]
-
-    def __str__(self) -> str:
-        return str(self.wages)
+        super().__init__(wages)
 
     @classmethod
     def setMeasurment(cls, measurement: Measurments) -> None:
@@ -37,15 +35,15 @@ class Neuron():
         raise NotImplementedError
 
     def getSimilarityTo(self, vector: list):
-        return sum(self.__countMeasure(w, v) for w, v in zip(self.wages, vector))
+        return sum(self.__countMeasure(w, v) for w, v in zip(self, vector))
 
     def __getRandWage(self):
         return random.randrange(1, 100)
 
     def updateWages(self, inputVector, A=1):
-        for inputNumber in range(len(self.wages)):
-            self.wages[inputNumber] = self.wages[inputNumber] + self.P * \
-                (inputVector[inputNumber] - self.wages[inputNumber]) * A
+        for inputNumber in range(len(self)):
+            self[inputNumber] = self[inputNumber] + self.P * \
+                (inputVector[inputNumber] - self[inputNumber]) * A
 
 
 class Saveable():
@@ -64,16 +62,16 @@ class Saveable():
 
         with open(fileName) as file:
             data = file.read()
-            points = json.loads(data)
+            data = json.loads(data)
             file.close()
-            return cls(points)
+            return cls(data)
 
     def saveToFile(self, fileName: str = None):
         if not fileName:
             fileName = self.FILE_NAME
 
         with open(fileName, 'w+') as file:
-            data = json.dumps(self.points)
+            data = json.dumps(self.store)
             file.write(data)
             file.close()
 
