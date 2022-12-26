@@ -1,63 +1,174 @@
+import json
 import logging
-from NNutils import Neuron, Measurments, VectorsGenerator, TrainingPoints
+from NNutils import Neuron, Measurments, Saveable, TrainingPoints
 
-logging.basicConfig(level=logging.DEBUG, format='%(levelname)s %(message)s')
+logging.basicConfig(level=logging.INFO,
+                    format='%(name)s:%(levelname)s %(message)s')
 
-
-def nprint(lvlFunction=logging.info):
-    for i, n in enumerate(neurons):
-        lvlFunction(f'{i}. {n}')
-    lvlFunction('-')
-
-epochsCount = 1_000
-# WTA
+WTA_FILE = './WTA.json'
 
 
-# learning speed p
-P = 0.99
+class WTA():
+    P: float = 0.5
+    LEARN: bool = True
+    MEASURE: Measurments = Measurments.metropolitanMeasure
 
-Neuron.setMeasurment(Measurments.metropolitanMeasure)
-Neuron.P = P
+    def __init__(self, neurons: list[Neuron]) -> None:
+        self.__neurons: Saveable = Saveable(neurons)
+        self.logger = logging.getLogger(__class__.__name__)
 
-inputVectorLength = 2
-neuronsCount = 9
+        self.__lastWinnerIndex = -1
 
-neurons = [Neuron(inputVectorLength) for _ in range(neuronsCount)]
-nprint()
+    @property
+    def neurons(self):
+        return self.__neurons.store
 
-vectors = TrainingPoints.loadFromFile('temp.json')
+    @classmethod
+    def build(cls, inputVectorLength: int, neuronsCount: int):
+        Neuron.setMeasurment(cls.MEASURE)
+        Neuron.P = cls.P
+
+        return cls([
+            Neuron(inputVectorsCount=inputVectorLength)
+            for _ in range(neuronsCount)
+        ])
+
+    @classmethod
+    def buildFromFile(cls, filePath: str):
+        Neuron.setMeasurment(cls.MEASURE)
+        Neuron.P = cls.P
+        savedNeuronsWages = Saveable.loadFromFile(filePath).store
+        return cls([
+            Neuron(initWages=wages)
+            for wages in savedNeuronsWages
+        ])
+
+    def save(self, filePath: str):
+        self.__neurons.saveToFile(filePath)
+
+    def logNeurons(self):
+        for i, n in enumerate(self.neurons):
+            self.logger.info(f'{i}. {n}')
+
+    def process(self, vector: list | tuple) -> tuple[int, float]:
+        '''
+        param:
+            vector:list|tuple - vector to be processed by the network,
+        returns:
+            tuple(triggered_neuron_index, similarity_value)
+
+        updates neurons weights only if LEARN property is set to True
+        '''
+        similarity = [
+            (index, neuron.getSimilarityTo(vector))
+            for index, neuron in enumerate(self.__neurons.store)
+        ]
+        similarity.sort(key=lambda s: s[1], reverse=True)
+        self.logger.debug(similarity)
+
+        # choose the winner
+        choosedIndex = 0  # biggest similarity
+        (index, sim) = similarity[choosedIndex]
+        # while self.LEARN and self.__lastWinnerIndex == index:
+        #     self.logger.debug(f'skipping {index}; sim: {sim}')
+        #     (index, sim) = similarity[choosedIndex+1]
+
+        # if self.LEARN and self.__lastWinnerIndex != index:
+        self.__neurons.store[index].updateWages(vector)
+
+        self.logger.debug(f'winner: {index}; sim: {sim}')
+        self.__lastWinnerIndex = index
+
+        return (index, sim)
 
 
-def main():
-    lastWinner = 0
-    for _ in range(epochsCount):
-        print(f'epoch: {_}')
-        for vector in vectors.points:
+WTA.P = 0.4
+WTA.LEARN = True
+WTA.MEASURE = Measurments.metropolitanMeasure
 
-            similarity = [
-                (index, neuron.getSimilarityTo(vector))
-                for index, neuron in enumerate(neurons)
+
+def train():
+    DESIRED_SIMILARITY = 4.5
+    MAX_INTERATIONS = 10_000
+
+    wta = WTA.build(2, 3)
+    wta.logNeurons()
+
+    vectors = TrainingPoints.loadFromFile('./vectors.json')
+
+    runResults = [(-1, 999)]
+    currentIter = 0
+    while (
+        any([res[1] > DESIRED_SIMILARITY for res in runResults])
+        and currentIter < MAX_INTERATIONS
+    ):
+
+        runResults = [
+            wta.process(vector)
+            for vector in vectors.points
+        ]
+
+        vectors.shuffle()
+        currentIter += 1
+
+    print(currentIter)
+    print(runResults)
+    wta.logNeurons()
+    wta.save(WTA_FILE)
+
+
+class NetworkTestResults(Saveable):
+    '''
+    {
+        'neuronIndex': [
+                {
+                    'sim': float,
+                    'vector': arr[floats]
+                },
+                ...
+            ],
+        ...
+    }
+    '''
+
+    def __init__(self) -> None:
+        super()
+        self.data = {}
+
+    def add(self, neuronIndex, sim, vector) -> None:
+        if neuronIndex in self.data:
+            self.data[neuronIndex].append({
+                'sim': sim,
+                'vector': vector
+            })
+        else:
+            self.data[neuronIndex] = [
+                {
+                    'sim': sim,
+                    'vector': vector
+                }
             ]
-            similarity.sort(key=lambda s: s[1], reverse=True)
-
-            #choose the winner
-            choosedIndex = 0 # biggest similarity
-            (index, sim) = similarity[choosedIndex]
-            # while lastWinner == index:
-            #     logging.debug(f'skipping {index}; sim: {sim}')
-            #     (index, sim) = similarity[choosedIndex+1]
-
-            if lastWinner != index:
-                neurons[index].updateWages(vector)
-
-            logging.debug(f'winner: {index}; sim: {sim}')
-            lastWinner = index
-
-            #neuron wages update
-            # nprint(logging.debug)
             
-        vectors.shuffle() 
+    def dump(self):
+        return json.dumps(self.data, indent=4)
 
-main()
 
-nprint()
+def test():
+    store = NetworkTestResults()
+    
+    WTA.LEARN = False
+    wta = WTA.buildFromFile(WTA_FILE)
+    wta.logNeurons()
+
+    vectors = TrainingPoints.loadFromFile('./vectors.json')
+
+    for vector in vectors.points:
+        neuron, sim = wta.process(vector)
+        store.add(neuron, sim, vector)
+
+
+    print(store.dump())
+
+
+# test()
+train()
